@@ -13,13 +13,13 @@ const _ADD_TO_CACHE = [
 
 
 self.addEventListener('install', ($event) => {
-    $event
-        .waitUntil(
-            caches.open(_CACHE_NAME)
-            .then((cache) => {
-                return cache.addAll(_ADD_TO_CACHE);
-            })
-        );
+    caches.open(_CACHE_NAME)
+        .then((cache) => {
+            return cache.addAll(_ADD_TO_CACHE);
+        })
+        .catch((err) => {
+            console.log(err);
+        })
 })
 
 self.addEventListener('fetch', ($event) => {
@@ -30,22 +30,22 @@ self.addEventListener('fetch', ($event) => {
             .then(
                 (response) => {
                     return (
-                        response 
-                        ||
+                        response ||
                         (() => {
                             const internetFetchRequest = $event.request.clone();
                             return fetch(internetFetchRequest)
                                 .then(
                                     (response) => {
-                                        if (!response) {
+                                        if (!response.ok) {
                                             return response;
-                                        }
-                                        else {
+                                        } else {
                                             const addToCache = response.clone();
+
                                             caches.open(_CACHE_NAME)
                                                 .then((cache) => {
                                                     return cache.put($event.request, addToCache);
                                                 });
+
                                             return response;
                                         }
                                     }
