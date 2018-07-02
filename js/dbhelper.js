@@ -1,54 +1,109 @@
+const _DB_VER = 1,
+  _DB_NAME = 'rr_db',
+  _DB_OBJECT = 'restaurants';
+
 /**
  * Common database helper functions.
  */
 class DBHelper {
+
+  constructor() {
+    console.log('db Boot');
+  }
 
   /**
    * Database URL.
    * Change this to restaurants.json file location on your server.
    */
   static get DATABASE_URL() {
-    const location = window.location.origin;
+    // const location = window.location.origin;
     // const port = 8000 // Change this to your server port
-    return `${location}/data/restaurants.json`;
+    return `http://localhost:1337`;
   }
 
   /**
    * Fetch all restaurants.
    */
   static fetchRestaurants(callback) {
-    let xhr = new XMLHttpRequest();
-    xhr.open('GET', DBHelper.DATABASE_URL);
-    xhr.onload = () => {
-      if (xhr.status === 200) { // Got a success response from server!
-        const json = JSON.parse(xhr.responseText);
-        const restaurants = json.restaurants;
-        callback(null, restaurants);
-      } else { // Oops!. Got an error from server.
-        const error = (`Request failed. Returned status of ${xhr.status}`);
-        callback(error, null);
-      }
-    };
-    xhr.send();
+    fetch(`${DBHelper.DATABASE_URL}/restaurants`)
+      .then(res => res.json())
+      .then(async restaurants => {
+        callback(null, restaurants)
+        // add restaurants to db
+        this.openIdbInstance()
+          .then(
+            db => {
+              if (!db) return;
+              else {
+                const tx = db.transaction(_DB_OBJECT, 'readwrite');
+                const objectStore = tx.objectStore(_DB_OBJECT);
+                restaurants.map(restaurant => {
+                  objectStore.put(restaurant)
+                });
+              }
+            }
+          )
+          .catch(err => {
+            // possibaly wont exist but curious if it does!
+            console.log(err);
+          })
+      })
+      .catch(err => {
+        console.log('in here');
+        this.openIdbInstance().then(
+          db => {
+            if (!db) callback(err, null);
+            else {
+              db.transaction(_DB_OBJECT)
+                .objectStore(_DB_OBJECT)
+                .index('number')
+                .getAll()
+                .then(restaurants => {
+                  callback(null, restaurants);
+                })
+                .catch(err => {
+                  callback(err, null);
+                });
+            }
+          }
+        )
+      })
   }
 
   /**
    * Fetch a restaurant by its ID.
    */
   static fetchRestaurantById(id, callback) {
-    // fetch all restaurants with proper error handling.
-    DBHelper.fetchRestaurants((error, restaurants) => {
-      if (error) {
-        callback(error, null);
-      } else {
-        const restaurant = restaurants.find(r => r.id == id);
-        if (restaurant) { // Got the restaurant
-          callback(null, restaurant);
-        } else { // Restaurant does not exist in the database
+    // fetch all restaurants with proper error handling
+    fetch(`${DBHelper.DATABASE_URL}/restaurants/${id}`)
+      .then(res => res.json())
+      .then(res => {
+        if (res instanceof Object) {
+          callback(null, res)
+        } else {
           callback('Restaurant does not exist', null);
         }
-      }
-    });
+      })
+      .catch(err => {
+        this.openIdbInstance().then(
+          db => {
+            if (!db) callback(err, null);
+            else {
+              db.transaction(_DB_OBJECT)
+                .objectStore(_DB_OBJECT)
+                .index('number')
+                .get(parseInt(id))
+                .then(restaurant => {
+                  console.log(restaurant);                  
+                  callback(null, restaurant);
+                })
+                .catch(err => {
+                  callback(err, null);
+                });
+            }
+          }
+        )
+      })
   }
 
   /**
@@ -151,7 +206,7 @@ class DBHelper {
    * Restaurant image URL.
    */
   static imageUrlForRestaurant(restaurant) {
-    return (`/img/${restaurant.photograph}`);
+    return (restaurant.photograph ? `/img/${restaurant.photograph}.jpg` : `/img/nodata.jpg`);
   }
 
   /**
@@ -178,4 +233,19 @@ class DBHelper {
     return marker;
   } */
 
+  /**
+   * open Instance of Idb
+   */
+  static openIdbInstance() {
+    if (!navigator.serviceWorker) {
+      return Promise.resolve()
+    }
+
+    return idb.open(_DB_NAME, _DB_VER, (upgradeDb) => {
+      var store = upgradeDb.createObjectStore(_DB_OBJECT, {
+        keyPath: 'id'
+      });
+      store.createIndex('number', 'id');
+    });
+  }
 }

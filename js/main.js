@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // added 
     fetchNeighborhoods();
     fetchCuisines();
+
 });
 
 /**
