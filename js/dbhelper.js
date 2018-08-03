@@ -1,6 +1,11 @@
 const _DB_VER = 1,
   _DB_NAME = 'rr_db',
-  _DB_OBJECT = 'restaurants';
+  _DB_OBJECT_RESTAURANT = 'restaurants',
+  _DB_OBJECT_REVIEW = 'reviews',
+  _DB_OBJECT_REVIEW_PENDING = 'rps',
+  _DB_OBJECT_FAV_PENDING = 'fps';
+
+let idCount = 0
 
 /**
  * Common database helper functions.
@@ -27,16 +32,16 @@ class DBHelper {
   static fetchRestaurants(callback) {
     fetch(`${DBHelper.DATABASE_URL}/restaurants`)
       .then(res => res.json())
-      .then(async restaurants => {
+      .then(restaurants => {
         callback(null, restaurants)
         // add restaurants to db
-        this.openIdbInstance()
+        this.openIdbInstance(_DB_OBJECT_RESTAURANT)
           .then(
             db => {
               if (!db) return;
               else {
-                const tx = db.transaction(_DB_OBJECT, 'readwrite');
-                const objectStore = tx.objectStore(_DB_OBJECT);
+                const tx = db.transaction(_DB_OBJECT_RESTAURANT, 'readwrite');
+                const objectStore = tx.objectStore(_DB_OBJECT_RESTAURANT);
                 restaurants.map(restaurant => {
                   objectStore.put(restaurant)
                 });
@@ -49,24 +54,24 @@ class DBHelper {
           })
       })
       .catch(err => {
-        console.log('in here');
-        this.openIdbInstance().then(
-          db => {
-            if (!db) callback(err, null);
-            else {
-              db.transaction(_DB_OBJECT)
-                .objectStore(_DB_OBJECT)
-                .index('number')
-                .getAll()
-                .then(restaurants => {
-                  callback(null, restaurants);
-                })
-                .catch(err => {
-                  callback(err, null);
-                });
+        this.openIdbInstance(_DB_OBJECT_RESTAURANT)
+          .then(
+            db => {
+              if (!db) callback(err, null);
+              else {
+                db.transaction(_DB_OBJECT_RESTAURANT)
+                  .objectStore(_DB_OBJECT_RESTAURANT)
+                  .index('number')
+                  .getAll()
+                  .then(restaurants => {
+                    callback(null, restaurants);
+                  })
+                  .catch(err => {
+                    callback(err, null);
+                  });
+              }
             }
-          }
-        )
+          )
       })
   }
 
@@ -85,24 +90,151 @@ class DBHelper {
         }
       })
       .catch(err => {
-        this.openIdbInstance().then(
-          db => {
-            if (!db) callback(err, null);
-            else {
-              db.transaction(_DB_OBJECT)
-                .objectStore(_DB_OBJECT)
-                .index('number')
-                .get(parseInt(id))
-                .then(restaurant => {
-                  console.log(restaurant);                  
-                  callback(null, restaurant);
-                })
-                .catch(err => {
-                  callback(err, null);
-                });
+        this.openIdbInstance(_DB_OBJECT_RESTAURANT)
+          .then(
+            db => {
+              if (!db) callback(err, null);
+              else {
+                db.transaction(_DB_OBJECT_RESTAURANT)
+                  .objectStore(_DB_OBJECT_RESTAURANT)
+                  .index('number')
+                  .get(parseInt(id))
+                  .then(restaurant => {
+                    console.log(restaurant);
+                    callback(null, restaurant);
+                  })
+                  .catch(err => {
+                    callback(err, null);
+                  });
+              }
             }
-          }
-        )
+          )
+      })
+  }
+
+  /**
+   * fetch restaurant review by id 
+   */
+  static fetchRestaurantReview(id, callback) {
+    fetch(`${DBHelper.DATABASE_URL}/reviews/?restaurant_id=${id}`)
+      .then(res => res.json())
+      .then(reviews => {
+        if (reviews instanceof Object) {
+          callback(null, reviews)
+          this.openIdbInstance(_DB_OBJECT_REVIEW)
+            .then(
+              db => {
+                if (!db) return;
+                else {
+                  const tx = db.transaction(_DB_OBJECT_REVIEW, 'readwrite');
+                  const objectStore = tx.objectStore(_DB_OBJECT_REVIEW);
+                  reviews.map(review => {
+                    objectStore.put(review)
+                  });
+                }
+              }
+            )
+            .catch(err => {
+              // possibaly wont exist but curious if it does!
+              console.log(err);
+            })
+        } else {
+          callback('Restaurant does not exist', null);
+        }
+      })
+      .catch(err => {
+        this.openIdbInstance(_DB_OBJECT_REVIEW)
+          .then(
+            db => {
+              if (!db) callback(err, null);
+              else {
+                db.transaction(_DB_OBJECT_REVIEW)
+                  .objectStore(_DB_OBJECT_REVIEW)
+                  .index('number')
+                  .getAll()
+                  .then(reviews => {
+                    callback(null, reviews.filter(review => review.restaurant_id === id));
+                  })
+                  .catch(err => {
+                    callback(err, null);
+                  });
+              }
+            }
+          )
+      })
+  }
+
+  /**
+   * post a resaurant review, if no connection, 
+   * add it to db and sync it later
+   */
+  static postRestaurantReview(reviewObj, cb, dontAddToDb) {
+    return fetch(`${DBHelper.DATABASE_URL}/reviews/`, {
+        method: 'POST',
+        mode: 'cors',
+        body: JSON.stringify(reviewObj)
+      })
+      .then(res => res.json())
+      .then(reviews => cb(null, reviews))
+      .catch(err => {
+        if(dontAddToDb) {
+          cb(err, null);
+          return;
+        }
+        this.openIdbInstance(_DB_OBJECT_REVIEW_PENDING, true)
+          .then(
+            db => {
+              if (!db) callback(err, null);
+              else {
+                if (!db) return;
+                else {
+                  const tx = db.transaction(_DB_OBJECT_REVIEW_PENDING, 'readwrite');
+                  const objectStore = tx.objectStore(_DB_OBJECT_REVIEW_PENDING);
+                  reviewObj.id = idCount++;
+                  objectStore.put(reviewObj);
+                }
+              }
+            }
+          )
+        cb(err, null)
+      })
+  }
+
+  /**
+   * toggle favt restaurant
+   */
+  static favtToggleTo(id, truth, cb, dontAddToDb) {
+    return fetch(`${DBHelper.DATABASE_URL}/restaurants/${id}/?is_favorite=${truth}`, {
+        method: 'PUT'
+      })
+      .then(res => res.json())
+      .then(restaurant => cb(null, restaurant))
+      .catch(error => {
+        if(dontAddToDb) {
+          cb(err, null);
+          return;
+        }
+        this.openIdbInstance(_DB_OBJECT_FAV_PENDING)
+          .then(
+            db => {
+              if (!db) callback(err, null);
+              else {
+                if (!db) return;
+                else {
+                  const tx = db.transaction(_DB_OBJECT_FAV_PENDING, 'readwrite');
+                  const objectStore = tx.objectStore(_DB_OBJECT_FAV_PENDING);
+                  objectStore.put({
+                    id,
+                    truth
+                  })
+                  cb(null, {
+                    is_favorite: truth
+                  })
+                }
+              }
+            }
+          )
+        cb(error, null)
       })
   }
 
@@ -206,7 +338,7 @@ class DBHelper {
    * Restaurant image URL.
    */
   static imageUrlForRestaurant(restaurant) {
-    return (restaurant.photograph ? `/img/${restaurant.photograph}.jpg` : `/img/${restaurant.id}.jpg`);
+    return (restaurant.photograph ? `/img/${restaurant.photograph}.webp` : `/img/${restaurant.id}.webp`);
   }
 
   /**
@@ -222,6 +354,113 @@ class DBHelper {
     marker.addTo(newMap);
     return marker;
   }
+
+  static syncAllFavourites() {
+    DBHelper.openIdbFcn(_DB_OBJECT_FAV_PENDING)
+      .then(
+        db => {
+          if (!db) {
+            console.log('No Db');
+            return;
+          } else {
+            const tranzaction = db.transaction(_DB_OBJECT_FAV_PENDING)
+            const ObjStore = tranzaction.objectStore(_DB_OBJECT_FAV_PENDING).index('number')
+
+            ObjStore
+              .getAll()
+              .then(favs => {
+                favs.map(
+                  fav => {
+                    DBHelper.favtToggleTo(
+                      fav.id,
+                      fav.truth,
+                      (err, restaurant) => {
+                        if (restaurant) {
+                          console.log('successfully synced!')
+                          DBHelper.deleteOnSunc(_DB_OBJECT_FAV_PENDING, restaurant, 'id')
+                        }
+                      },
+                      true
+                    )
+                  }
+                )
+              })
+              .catch(err => {
+                console.log(err)
+              });
+          }
+        }
+      )
+  }
+
+  static syncAllReviews() {
+    DBHelper.openIdbFcn(_DB_OBJECT_REVIEW_PENDING)
+      .then(
+        db => {
+          if (!db) {
+            console.log('No Db');
+            return;
+          } else {
+            const tranzaction = db.transaction(_DB_OBJECT_REVIEW_PENDING)
+            const ObjStore = tranzaction.objectStore(_DB_OBJECT_REVIEW_PENDING).index('number')
+
+            ObjStore
+              .getAll()
+              .then(reviews => {
+                reviews.map(
+                  review => {
+                    const syncReview = {...review};
+                    delete(syncReview.id);
+
+                    DBHelper.postRestaurantReview(
+                      syncReview,
+                      (err, restaurant) => {
+                        if (restaurant) {
+                          console.log('successfully synced!')
+                          DBHelper.deleteOnSunc(_DB_OBJECT_FAV_PENDING, review, 'id')
+                        }
+                      },
+                      true
+                    )
+                  }
+                )
+              })
+              .catch(err => {
+                console.log(err)
+              });
+          }
+        }
+      )
+  }
+
+  static deleteOnSunc(dbName, delObj, keyPath) {
+    DBHelper.openIdbFcn(dbName)
+      .then(
+        db => {
+          if (!db) {
+            console.log('No Db');
+            return;
+          } else {
+            const tranzaction = db.transaction(dbName, 'readwrite')
+            const ObjStore = tranzaction.objectStore(dbName).index('number')
+
+            ObjStore
+              .openCursor()
+              .then(function deleteOnSync(cursor) {
+                if (!cursor) {
+                  return;
+                } else {
+                  let c_fav = cursor.value
+                  if (c_fav.id === delObj[keyPath].toString()) {
+                    cursor.delete()
+                  }
+                  return cursor.continue().then(deleteOnSync);
+                }
+              })
+          }
+        })
+  }
+
   /* static mapMarkerForRestaurant(restaurant, map) {
     const marker = new google.maps.Marker({
       position: restaurant.latlng,
@@ -236,13 +475,17 @@ class DBHelper {
   /**
    * open Instance of Idb
    */
-  static openIdbInstance() {
+  static openIdbInstance(objectStore) {
     if (!navigator.serviceWorker) {
-      return Promise.resolve()
+      return Promise.resolve();
     }
 
-    return idb.open(_DB_NAME, _DB_VER, (upgradeDb) => {
-      var store = upgradeDb.createObjectStore(_DB_OBJECT, {
+    return this.openIdbFcn(objectStore)
+  }
+
+  static openIdbFcn(objectStore) {
+    return idb.open(_DB_NAME + '_' + objectStore, _DB_VER, (upgradeDb) => {
+      var store = upgradeDb.createObjectStore(objectStore, {
         keyPath: 'id'
       });
       store.createIndex('number', 'id');

@@ -1,12 +1,48 @@
 let restaurant;
 var newMap;
+const addReviewButton = document.querySelector('#r-add-review');
 
 /**
  * Initialize map as soon as the page is loaded.
  */
 document.addEventListener('DOMContentLoaded', (event) => {
   initMap();
+  addReviewButton.addEventListener('click', addReview);
 });
+
+/**
+ * add review on submit
+ */
+function addReview($event) {
+  const form = document.querySelector('#r-form');
+  const name = document.querySelector('#r-name');
+  const rating = document.querySelector('#r-rating');
+  const comments = document.querySelector('#r-comment');
+
+  if (!name.value || !comments.value || name.value === '' || comments.value === '') {
+    form.reset();
+    return;
+  }
+
+  DBHelper.postRestaurantReview({
+    "name": name.value,
+    "rating": rating.value,
+    "comments": comments.value,
+    "restaurant_id": self.restaurant.id
+  }, (error, review) => {
+    if (!review) {
+      alert('res is stored, will be reflected when online')
+      console.error(error);
+      return;
+    } else {
+      appendToReviews([review]);
+    }
+    name.value = '';
+    rating.value = '';
+    comments.value = '';
+    form.reset();
+  })
+}
 
 /**
  * Initialize leaflet map
@@ -99,7 +135,17 @@ fillRestaurantHTML = (restaurant = self.restaurant) => {
     fillRestaurantHoursHTML();
   }
   // fill reviews
-  fillReviewsHTML();
+  DBHelper.fetchRestaurantReview(
+    self.restaurant.id,
+    (err, reviews) => {
+      if (err || !reviews) {
+        console.error(error);
+        return;
+      }
+      fillReviewsHTML(reviews);
+
+    }
+  )
 }
 
 /**
@@ -137,6 +183,20 @@ fillReviewsHTML = (reviews = self.restaurant.reviews) => {
     container.appendChild(noReviews);
     return;
   }
+
+  const ul = document.getElementById('reviews-list');
+  reviews.forEach(review => {
+    ul.appendChild(createReviewHTML(review));
+  });
+  container.appendChild(ul);
+}
+
+
+/**
+ * add reviews to
+ */
+appendToReviews = (reviews) => {
+  const container = document.getElementById('reviews-container');
   const ul = document.getElementById('reviews-list');
   reviews.forEach(review => {
     ul.appendChild(createReviewHTML(review));
@@ -157,9 +217,11 @@ createReviewHTML = (review) => {
   name.innerHTML = review.name;
   div.appendChild(name);
 
-  const date = document.createElement('p');
-  date.innerHTML = review.date;
-  div.appendChild(date);
+
+  const dateEle = document.createElement('p');
+  const date = new Date(review.createdAt).toString().split(' ');
+  dateEle.innerHTML = `${date[1]}/${date[2]}/${date[3]}`;
+  div.appendChild(dateEle);
 
   li.appendChild(div);
 

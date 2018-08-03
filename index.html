@@ -31,6 +31,11 @@
 </head>
 
 <body>
+  <div id="offline" class="" data-offline="false">
+    <p class="padding-small">
+      Application is offline!. Your responses will be recorded.
+    </p>
+  </div>
   <header>
     <nav>
       <h1>
@@ -72,6 +77,7 @@
     crossorigin=""></script>
   <script type="text/javascript" src="js/idb.js"></script>
   <script type="application/javascript" charset="utf-8" src="js/dbhelper.js"></script>
+  <script type="text/javascript" src="js/offline.js" async defer></script>
   <script type="application/javascript" charset="utf-8" src="js/main.js"></script>
   <!-- <script async defer src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places&callback=initMap"></script> -->
   <!-- TODO: Undo after Development  -->
@@ -86,6 +92,15 @@
             (registration) => {
               console.log("service worker installed");
               console.log(registration);
+              setTimeout(_ => {
+                registration
+                  .sync
+                  .register('syncDb')
+                  .then(
+                    () => {
+                      console.log('Sync registered');
+                    });
+              }, 1500)
             }, (err) => {
               console.log("service worker not installed");
               console.log(err);

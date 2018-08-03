@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // added 
     fetchNeighborhoods();
     fetchCuisines();
-
 });
 
 /**
@@ -151,6 +150,7 @@ fillRestaurantsHTML = (restaurants = self.restaurants) => {
         ul.append(createRestaurantHTML(restaurant));
     });
     addMarkersToMap();
+    fetchFavIcon();
 }
 
 /**
@@ -180,14 +180,84 @@ createRestaurantHTML = (restaurant) => {
     address.innerHTML = restaurant.address;
     div.append(address);
 
+
+    const bottom = document.createElement('div');
+    bottom.style.display = 'flex';
+    bottom.style.justifyContent = 'space-between';
+    bottom.style.marginTop = '15px';
+
     const more = document.createElement('a');
     more.innerHTML = 'View Details';
     more.href = DBHelper.urlForRestaurant(restaurant);
-    div.append(more)
+    bottom.append(more)
 
+    const favBtn = document.createElement('button');
+    const classList = ['icon-button'];
+    // as the element is not in dom yet, changes can be multipele without perf. issues
+    favBtn.setAttribute('data-is-favt', false);
+    if (restaurant.is_favorite === 'true') {
+        classList.push('is-favt');
+        favBtn.setAttribute('data-is-favt', true);
+    }
+    favBtn.classList.add(...classList);
+    favBtn.name = `favourite ${restaurant.name}`;
+    favBtn.setAttribute('aria-label', `favourite ${restaurant.name}`)
+    favBtn.setAttribute('data-btn-type', 'fav');
+    favBtn.setAttribute('data-restaurant-id', restaurant.id);
+
+    favBtn.id = `favBtn-${restaurant.id}`;
+    bottom.append(favBtn);
+
+    div.append(bottom)
     li.append(div);
 
     return li
+}
+
+/**
+ * add Favt icons on defer
+ */
+fetchFavIcon = () => {
+    fetch('/img/fav.svg')
+        .then(res => res.text())
+        .then(fav => {
+            const favBtns = Array.from(document.querySelectorAll('button[data-btn-type=fav]'));
+            favBtns.map(btn => {
+                btn.innerHTML = fav;
+                btn.addEventListener('click', toggleFavt)
+            });
+        })
+        .catch(err => console.log(err));
+}
+
+/**
+ * toggle Favt
+ */
+function toggleFavt() {
+    let restaurant_id = this.getAttribute('data-restaurant-id');
+    let toggleTruthTo = this.getAttribute('data-is-favt') === "true" ? "false" : "true";
+    DBHelper.favtToggleTo(
+        restaurant_id,
+        toggleTruthTo,
+        (error, restaurant) => {
+            if (!restaurant) {
+                console.log(error)
+                return
+            }
+            restaurant.is_favorite === "true" ?
+                favRestaurant() :
+                unFavRestaurant()
+        })
+
+    const favRestaurant = () => {
+        this.setAttribute('data-is-favt', true);
+        this.classList.add('is-favt');
+    }
+
+    const unFavRestaurant = () => {
+        this.setAttribute('data-is-favt', false);
+        this.classList.remove('is-favt');
+    }
 }
 
 /**

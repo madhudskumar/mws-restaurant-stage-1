@@ -1,3 +1,7 @@
+importScripts('./js/dbhelper.js')
+// needs to be imported as dbhelper runs in sw context and sw has no idea of idb
+importScripts('./js/idb.js')
+
 const _CACHE_VER = 4,
     _CACHE_NAME = `rr_${_CACHE_VER}`
 
@@ -60,3 +64,10 @@ self.addEventListener('fetch', ($event) => {
             )
     }
 })
+
+self.addEventListener('sync', function (event) {
+    if (event.tag === 'syncDb') {
+        event.waitUntil(DBHelper.syncAllFavourites())
+        event.waitUntil(DBHelper.syncAllReviews())        
+    }
+});

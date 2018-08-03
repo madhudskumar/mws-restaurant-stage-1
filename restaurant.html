@@ -29,6 +29,11 @@
   <!-- Beginning header -->
   <header>
     <!-- Beginning nav -->
+    <div id="offline" class="" data-offline="false">
+      <p class="padding-small">
+        Application is offline!. Your responses will be recorded.
+      </p>
+    </div>
     <nav>
       <h1>
         <a href="/">Restaurant Reviews</a>
@@ -68,7 +73,41 @@
       <!-- Beginning Divider -->
       <!-- Beginning reviews -->
       <section id="reviews-container">
-        <ul id="reviews-list"></ul>
+        <section class="margin-bottom-20">
+          <form id="r-form">
+            <legend>Add Your Review</legend>
+            <div class="flex margin-top-10">
+              <section>
+                <label for="r-name">Your Name</label>
+                <br>
+                <input type="text" id="r-name" class="r-input" placeholder="Name">
+              </section>
+              <section>
+                <label for="r-rating">Restaurant Rating</label>
+                <br>
+                <select name="rating" id="r-rating" class="r-select">
+                  <option value="1">1 - Bad</option>
+                  <option value="2">2 - Could Be Improved </option>
+                  <option value="3">3 - Average</option>
+                  <option value="4" selected="selected">4 - Good</option>
+                  <option value="5">5 - Excellento</option>
+                </select>
+              </section>
+            </div>
+
+            <div class="margin-top-10">
+              <label for="r-comment">Comments</label>
+              <br>
+              <textarea name="comment" id="r-comment" class="r-textarea" cols="10" rows="4" placeholder="Share your view"></textarea>
+            </div>
+          </form>
+
+          <button class="button" role="button" id="r-add-review">Add Review</button>
+
+          <hr>
+        </section>
+
+        <ul class="" id="reviews-list"></ul>
       </section>
       <!-- End reviews -->
     </section>
@@ -89,6 +128,7 @@
   <!-- Database helpers -->
   <script type="text/javascript" src="js/idb.js"></script>
   <script type="text/javascript" src="js/dbhelper.js"></script>
+  <script type="text/javascript" src="js/offline.js" async defer></script>
   <!-- Main javascript file -->
   <script type="text/javascript" src="js/restaurant_info.js"></script>
   <!-- Google Maps -->
@@ -106,6 +146,15 @@
             (registration) => {
               console.log("service worker installed");
               console.log(registration);
+              setTimeout(_ => {
+                registration
+                  .sync
+                  .register('syncDb')
+                  .then(
+                    () => {
+                      console.log('Sync registered');
+                    });
+              }, 1500)
             }, (err) => {
               console.log("service worker not installed");
               console.log(err);
